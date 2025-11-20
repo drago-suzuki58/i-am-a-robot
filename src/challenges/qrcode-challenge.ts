@@ -25,8 +25,8 @@ export class QrCodeChallenge implements CaptchaChallenge {
         display: grid;
         grid-template-columns: repeat(${moduleCount}, 1fr);
         grid-template-rows: repeat(${moduleCount}, 1fr);
-        width: 252px; /* 21 * 12px */
-        height: 252px; /* 21 * 12px */
+        width: ${gridSize * 12}px;
+        height: ${gridSize * 12}px;
         border: 1px solid #555;
       }
       .qr-cell {

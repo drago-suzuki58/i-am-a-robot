@@ -30,27 +30,24 @@ function waitForElement(selector: string): Promise<HTMLElement> {
 }
 
 function waitForEitherElement(
-  selector1: string,
-  selector2: string,
-): Promise<{ element: HTMLElement; type: "sha256" | "qrcode" }> {
+  selectors: { name: "sha256" | "qrcode" | "prime"; selector: string }[],
+): Promise<{ element: HTMLElement; type: "sha256" | "qrcode" | "prime" }> {
   return new Promise((resolve) => {
     const observer = new MutationObserver(() => {
-      const el1 = document.querySelector<HTMLElement>(selector1);
-      if (el1) {
-        observer.disconnect();
-        resolve({ element: el1, type: "sha256" });
-        return;
-      }
-      const el2 = document.querySelector<HTMLElement>(selector2);
-      if (el2) {
-        observer.disconnect();
-        resolve({ element: el2, type: "qrcode" });
-        return;
+      for (const s of selectors) {
+        const el = document.querySelector<HTMLElement>(s.selector);
+        if (el) {
+          observer.disconnect();
+          resolve({ element: el, type: s.name });
+          return;
+        }
       }
     });
     observer.observe(document.body, { childList: true, subtree: true });
   });
 }
+
+// --- Utilities ---
 
 async function calculateSha256(text: string): Promise<string> {
   const encoder = new TextEncoder();
@@ -64,6 +61,45 @@ async function calculateSha256(text: string): Promise<string> {
 }
 
 // --- Challenge Solvers ---
+
+async function solvePrimeChallenge() {
+  console.log("--- Solving Prime Factorization Challenge ---");
+
+  const numberDisplay = await waitForElement(".prime-number");
+  const numberToFactorStr = numberDisplay.textContent?.replace(/,/g, "");
+  if (!numberToFactorStr) throw new Error("Could not find number to factor.");
+  const numberToFactor = parseInt(numberToFactorStr, 10);
+
+  console.log(`2c. Found number to factor: ${numberToFactor}`);
+
+  const factorize = (num: number): number[] => {
+    const factors: number[] = [];
+    let d = 2;
+    let n = num;
+    while (n > 1) {
+      while (n % d === 0) {
+        factors.push(d);
+        n /= d;
+      }
+      d = d + 1;
+      if (d * d > n) {
+        if (n > 1) factors.push(n);
+        break;
+      }
+    }
+    return factors.sort((a, b) => a - b);
+  };
+
+  const factors = factorize(numberToFactor);
+  console.log(`3c. Calculated factors: ${factors.join(", ")}`);
+
+  const input = await waitForElement(".prime-input");
+  const submitButton = await waitForElement(".captcha-verify-button");
+
+  (input as HTMLInputElement).value = factors.join(", ");
+  console.log("4c. Input factors and submitting.");
+  submitButton.click();
+}
 
 async function solveSha256Challenge() {
   console.log("--- Solving SHA-256 Challenge ---");
@@ -129,21 +165,24 @@ async function solveCaptcha() {
     console.log("1. Found CAPTCHA trigger. Clicking it.");
     trigger.click();
 
-    const { type } = await waitForEitherElement(
-      ".sha256-challenge",
-      ".qr-challenge",
-    );
+    const { type } = await waitForEitherElement([
+      { name: "sha256", selector: ".sha256-challenge" },
+      { name: "qrcode", selector: ".qr-challenge" },
+      { name: "prime", selector: ".prime-challenge" },
+    ]);
 
     if (type === "sha256") {
       await solveSha256Challenge();
-    } else {
+    } else if (type === "qrcode") {
       await solveQrCodeChallenge();
+    } else if (type === "prime") {
+      await solvePrimeChallenge();
     }
 
     await waitForElement(".captcha-container.verified");
     console.log("CAPTCHA solved successfully!");
   } catch (error) {
-    console.error("❌ Bot failed:", error);
+    console.error("Bot failed:", error);
   }
 }
 

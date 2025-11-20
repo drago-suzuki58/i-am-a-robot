@@ -1,12 +1,14 @@
 import type { CaptchaChallenge } from "./types";
 import { Sha256Challenge } from "./sha256-challenge";
 import { QrCodeChallenge } from "./qrcode-challenge";
+import { PrimeFactorizationChallenge } from "./prime-factorization-challenge";
 
-export type ChallengeType = "sha256" | "qrcode" | "random";
+export type ChallengeType = "sha256" | "qrcode" | "prime" | "random";
 
-const availableChallenges: ReadonlyArray<"sha256" | "qrcode"> = [
+const availableChallenges: ReadonlyArray<"sha256" | "qrcode" | "prime"> = [
   "sha256",
   "qrcode",
+  "prime",
 ];
 
 /**
@@ -25,6 +27,8 @@ export function createChallenge(type: ChallengeType): CaptchaChallenge {
   switch (challengeType) {
     case "qrcode":
       return new QrCodeChallenge();
+    case "prime":
+      return new PrimeFactorizationChallenge();
     case "sha256":
     default:
       return new Sha256Challenge();

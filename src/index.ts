@@ -7,7 +7,7 @@ class RobotCaptcha {
   private hostElement: HTMLElement;
   private triggerElement: HTMLElement;
   private checkboxElement: HTMLElement;
-  private popupElement: HTMLElement;
+  private modalElement: HTMLElement;
   private closeButton: HTMLElement;
   private statusMessageElement: HTMLElement;
 
@@ -34,11 +34,10 @@ class RobotCaptcha {
     this.checkboxElement =
       this.triggerElement.querySelector(".captcha-checkbox")!;
 
-    this.popupElement = this.createPopup();
-    this.triggerElement.appendChild(this.popupElement);
-    this.hostElement.appendChild(wrapper);
+    this.modalElement = this.createModal();
+    this.closeButton = this.modalElement.querySelector(".captcha-modal-close")!;
 
-    this.closeButton = this.popupElement.querySelector(".captcha-popup-close")!;
+    this.hostElement.appendChild(wrapper);
 
     this.attachEventListeners();
   }
@@ -50,11 +49,9 @@ class RobotCaptcha {
   private createWrapper(): HTMLElement {
     const wrapper = document.createElement("div");
     wrapper.className = "captcha-wrapper";
-
     const trigger = this.createTrigger();
     const status = document.createElement("div");
     status.className = "captcha-status-message";
-
     wrapper.appendChild(trigger);
     wrapper.appendChild(status);
     return wrapper;
@@ -63,48 +60,50 @@ class RobotCaptcha {
   private createTrigger(): HTMLElement {
     const container = document.createElement("div");
     container.className = "captcha-container";
-
     const checkbox = document.createElement("div");
     checkbox.className = "captcha-checkbox";
-
     const icon = document.createElement("div");
     icon.className = "icon";
     icon.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>`;
-
     const spinner = document.createElement("div");
     spinner.className = "spinner";
-
     checkbox.appendChild(icon);
     checkbox.appendChild(spinner);
-
     const label = document.createElement("span");
     label.className = "captcha-label";
     label.textContent = "I am a robot";
-
     container.appendChild(checkbox);
     container.appendChild(label);
-
     return container;
   }
 
-  private createPopup(): HTMLElement {
-    const popup = document.createElement("div");
-    popup.className = "captcha-popup";
+  private createModal(): HTMLElement {
+    const overlay = document.createElement("div");
+    overlay.className = "captcha-modal-overlay";
+
+    const content = document.createElement("div");
+    content.className = "captcha-modal-content";
+
     const header = document.createElement("div");
-    header.className = "captcha-popup-header";
+    header.className = "captcha-modal-header";
     const title = document.createElement("h3");
-    title.className = "captcha-popup-title";
+    title.className = "captcha-modal-title";
     title.textContent = "Prove you are a robot";
     const closeButton = document.createElement("button");
-    closeButton.className = "captcha-popup-close";
+    closeButton.className = "captcha-modal-close";
     closeButton.innerHTML = "&times;";
     header.appendChild(title);
     header.appendChild(closeButton);
+
     const body = document.createElement("div");
-    body.className = "captcha-popup-body";
-    popup.appendChild(header);
-    popup.appendChild(body);
-    return popup;
+    body.className = "captcha-modal-body";
+
+    content.appendChild(header);
+    content.appendChild(body);
+    overlay.appendChild(content);
+    document.body.appendChild(overlay);
+
+    return overlay;
   }
 
   private attachEventListeners() {
@@ -113,7 +112,13 @@ class RobotCaptcha {
     );
     this.closeButton.addEventListener("click", (e) => {
       e.stopPropagation();
-      this.hidePopup();
+      this.hideModal();
+    });
+    // Also close modal on overlay click
+    this.modalElement.addEventListener("click", (e) => {
+      if (e.target === this.modalElement) {
+        this.hideModal();
+      }
     });
   }
 
@@ -124,7 +129,7 @@ class RobotCaptcha {
     if (
       this.isLoading ||
       this.isVerified ||
-      this.popupElement.classList.contains("visible")
+      this.modalElement.classList.contains("visible")
     ) {
       return;
     }
@@ -135,7 +140,7 @@ class RobotCaptcha {
       this.isLoading = false;
       this.triggerElement.classList.remove("loading");
       this.checkboxElement.classList.remove("loading");
-      this.showPopup();
+      this.showModal();
     }, 1500);
   }
 
@@ -146,7 +151,7 @@ class RobotCaptcha {
     this.isVerified = true;
     this.triggerElement.classList.add("verified");
     this.checkboxElement.classList.add("verified");
-    this.hidePopup();
+    this.hideModal();
     this.verifyTimeoutId = window.setTimeout(() => {
       this.expireVerification();
     }, 15000);
@@ -162,56 +167,43 @@ class RobotCaptcha {
   }
 
   private fail() {
-    this.hidePopup();
+    this.hideModal();
   }
 
-  private showPopup() {
-    const popupBody = this.popupElement.querySelector(
-      ".captcha-popup-body",
+  private showModal() {
+    const modalBody = this.modalElement.querySelector(
+      ".captcha-modal-body",
     )! as HTMLElement;
-    popupBody.innerHTML = "";
-    this.popupElement.classList.remove(
-      "popup-position-above",
-      "popup-position-below",
-    );
-    this.popupElement.classList.add("popup-position-above");
-    this.popupElement.classList.add("visible");
-    const rect = this.popupElement.getBoundingClientRect();
-    if (rect.top < 0) {
-      this.popupElement.classList.remove("popup-position-above");
-      this.popupElement.classList.add("popup-position-below");
-    }
+    modalBody.innerHTML = "";
+
     setTimeout(() => {
       const challenge = createChallenge(this.challengeType);
       this.challengeCleanup = challenge.create(
-        popupBody,
+        modalBody,
         () => this.verify(),
         () => this.fail(),
       );
     }, 0);
+
+    this.modalElement.classList.add("visible");
   }
 
-  private hidePopup() {
+  private hideModal() {
     if (this.challengeCleanup) {
       this.challengeCleanup();
       this.challengeCleanup = null;
     }
-    this.popupElement.classList.remove("visible");
-    this.popupElement.classList.remove(
-      "popup-position-above",
-      "popup-position-below",
-    );
-    // Clear the DOM content immediately on close
-    const popupBody = this.popupElement.querySelector(
-      ".captcha-popup-body",
+    this.modalElement.classList.remove("visible");
+    const modalBody = this.modalElement.querySelector(
+      ".captcha-modal-body",
     )! as HTMLElement;
-    popupBody.innerHTML = "";
+    modalBody.innerHTML = "";
   }
 }
 
 // --- Initialization Logic ---
 function isChallengeType(type: string): type is ChallengeType {
-  return ["sha256", "qrcode", "random"].includes(type);
+  return ["sha256", "qrcode", "prime", "random"].includes(type);
 }
 const rootElement = document.getElementById("root");
 if (rootElement) {
