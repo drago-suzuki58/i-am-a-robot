@@ -1,3 +1,6 @@
+import type { CaptchaChallenge } from "./challenges/types";
+import { Sha256Challenge } from "./challenges/sha256-challenge";
+
 /**
  * I am a Robot CAPTCHA Library
  */
@@ -7,20 +10,25 @@ class RobotCaptcha {
   private checkboxElement: HTMLElement;
   private popupElement: HTMLElement;
   private closeButton: HTMLElement;
-  private verifyButton: HTMLElement;
 
   private isLoading = false;
   private isVerified = false;
 
+  private challengeCleanup: (() => void) | null = null;
+
+  private challenge: CaptchaChallenge;
+
   /**
    * @param hostElementId The ID of the element to which the CAPTCHA will be appended.
+   * @param challenge An object that implements the CaptchaChallenge interface.
    */
-  constructor(hostElementId: string) {
+  constructor(hostElementId: string, challenge: CaptchaChallenge) {
     const host = document.getElementById(hostElementId);
     if (!host) {
       throw new Error(`Host element with id #${hostElementId} not found.`);
     }
     this.hostElement = host;
+    this.challenge = challenge;
 
     this.triggerElement = this.createTrigger();
     this.popupElement = this.createPopup();
@@ -31,9 +39,6 @@ class RobotCaptcha {
     this.checkboxElement =
       this.triggerElement.querySelector(".captcha-checkbox")!;
     this.closeButton = this.popupElement.querySelector(".captcha-popup-close")!;
-    this.verifyButton = this.popupElement.querySelector(
-      ".captcha-verify-button",
-    )!;
 
     this.attachEventListeners();
   }
@@ -91,14 +96,9 @@ class RobotCaptcha {
     header.appendChild(title);
     header.appendChild(closeButton);
 
+    // Body is created empty; it will be populated by the challenge.
     const body = document.createElement("div");
     body.className = "captcha-popup-body";
-    body.textContent = "ここにCAPTCHAチャレンジが表示されます。";
-
-    const verifyButton = document.createElement("button");
-    verifyButton.className = "captcha-verify-button";
-    verifyButton.textContent = "認証";
-    body.appendChild(verifyButton);
 
     popup.appendChild(header);
     popup.appendChild(body);
@@ -114,11 +114,6 @@ class RobotCaptcha {
     this.closeButton.addEventListener("click", (e) => {
       e.stopPropagation();
       this.hidePopup();
-    });
-
-    this.verifyButton.addEventListener("click", (e) => {
-      e.stopPropagation();
-      this.verify();
     });
   }
 
@@ -149,14 +144,37 @@ class RobotCaptcha {
     this.hidePopup();
   }
 
+  private fail() {
+    // For now, failure just closes the popup.
+    this.hidePopup();
+  }
+
   private showPopup() {
+    const popupBody = this.popupElement.querySelector(
+      ".captcha-popup-body",
+    )! as HTMLElement;
+    // Clear any previous challenge content
+    popupBody.innerHTML = "";
+
+    // Create the new challenge and store its cleanup function
+    this.challengeCleanup = this.challenge.create(
+      popupBody,
+      () => this.verify(),
+      () => this.fail(),
+    );
+
     this.popupElement.classList.add("visible");
   }
 
   private hidePopup() {
+    // If a cleanup function exists, call it.
+    if (this.challengeCleanup) {
+      this.challengeCleanup();
+      this.challengeCleanup = null;
+    }
     this.popupElement.classList.remove("visible");
   }
 }
 
 // Initialize the CAPTCHA on the #root element
-new RobotCaptcha("root");
+new RobotCaptcha("root", new Sha256Challenge());
