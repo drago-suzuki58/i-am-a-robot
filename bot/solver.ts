@@ -1,10 +1,12 @@
 /**
  * A bot to automatically solve the "I am a Robot" CAPTCHA.
  */
+import QRCode from "qrcode";
 
-console.log('Bot script loaded.');
+console.log("Bot script loaded.");
 
-// Helper function to wait for an element to appear in the DOM.
+// --- Helper Functions ---
+
 function waitForElement(selector: string): Promise<HTMLElement> {
   return new Promise((resolve) => {
     const element = document.querySelector<HTMLElement>(selector);
@@ -27,83 +29,145 @@ function waitForElement(selector: string): Promise<HTMLElement> {
   });
 }
 
-// SHA-256 calculation function, copied from the challenge itself.
+function waitForEitherElement(
+  selector1: string,
+  selector2: string,
+): Promise<{ element: HTMLElement; type: "sha256" | "qrcode" }> {
+  return new Promise((resolve) => {
+    const observer = new MutationObserver(() => {
+      const el1 = document.querySelector<HTMLElement>(selector1);
+      if (el1) {
+        observer.disconnect();
+        resolve({ element: el1, type: "sha256" });
+        return;
+      }
+      const el2 = document.querySelector<HTMLElement>(selector2);
+      if (el2) {
+        observer.disconnect();
+        resolve({ element: el2, type: "qrcode" });
+        return;
+      }
+    });
+    observer.observe(document.body, { childList: true, subtree: true });
+  });
+}
+
 async function calculateSha256(text: string): Promise<string> {
   const encoder = new TextEncoder();
   const data = encoder.encode(text);
-  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+  const hashBuffer = await crypto.subtle.digest("SHA-256", data);
   const hashArray = Array.from(new Uint8Array(hashBuffer));
   const hashHex = hashArray
-    .map((b) => b.toString(16).padStart(2, '0'))
-    .join('');
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
   return hashHex;
 }
 
-// Main solver function
+// --- Challenge Solvers ---
+
+async function solveSha256Challenge() {
+  console.log("--- Solving SHA-256 Challenge ---");
+  const stringDisplay = await waitForElement(".sha256-string");
+  const randomString = stringDisplay.textContent;
+  if (!randomString) throw new Error("Could not find SHA-256 string.");
+
+  console.log(`2a. Found string: "${randomString.substring(0, 10)}..."`);
+
+  const hash = await calculateSha256(randomString);
+  console.log(`3a. Calculated hash: ${hash.substring(0, 10)}...`);
+
+  const input = await waitForElement(".sha256-input");
+  const submitButton = await waitForElement(".captcha-verify-button");
+
+  (input as HTMLInputElement).value = hash;
+  console.log("4a. Input hash and submitting.");
+  submitButton.click();
+}
+
+async function solveQrCodeChallenge() {
+  console.log("--- Solving QR Code Challenge ---");
+  const sourceStringElement = await waitForElement(".qr-source-string");
+  const sourceString = sourceStringElement.textContent;
+  if (!sourceString) throw new Error("Could not find QR source string.");
+
+  console.log(`2b. Found source string: "${sourceString}"`);
+
+  console.log("3b. Generating reference QR code data...");
+  const qrCodeData = QRCode.create(sourceString, { version: 1 });
+  const qrModules = qrCodeData.modules.data;
+
+  const gridCells = document.querySelectorAll<HTMLElement>(".qr-cell");
+  if (gridCells.length !== qrModules.length) {
+    throw new Error("Grid size does not match QR module count.");
+  }
+
+  console.log("4b. Filling grid...");
+  for (let i = 0; i < qrModules.length; i++) {
+    const shouldBeActive = qrModules[i] === 1;
+    const cellIsActive = gridCells[i].classList.contains("active");
+    if (shouldBeActive !== cellIsActive) {
+      gridCells[i].click();
+    }
+  }
+
+  const submitButton = await waitForElement(".captcha-verify-button");
+  console.log("5b. Submitting grid.");
+  submitButton.click();
+}
+
+// --- Main Execution ---
+
 async function solveCaptcha() {
-  console.log('🤖 Bot starting...');
+  console.log("Bot starting...");
 
   try {
-    // 1. Click the initial CAPTCHA trigger
-    const trigger = await waitForElement('.captcha-container');
-    console.log('1. Found CAPTCHA trigger. Clicking it.');
+    const trigger = await waitForElement(".captcha-container");
+    if (trigger.classList.contains("verified")) {
+      console.log("CAPTCHA already solved.");
+      return;
+    }
+    console.log("1. Found CAPTCHA trigger. Clicking it.");
     trigger.click();
 
-    // 2. Wait for the challenge string to appear
-    const stringDisplay = await waitForElement('.sha256-string');
-    const randomString = stringDisplay.textContent;
-    if (!randomString) {
-      throw new Error('Could not find the random string to hash.');
+    const { type } = await waitForEitherElement(
+      ".sha256-challenge",
+      ".qr-challenge",
+    );
+
+    if (type === "sha256") {
+      await solveSha256Challenge();
+    } else {
+      await solveQrCodeChallenge();
     }
-    console.log(`2. Found string to hash: "${randomString.substring(0, 10)}..."`);
 
-    // 3. Calculate the hash
-    console.log('3. Calculating SHA-256 hash...');
-    const hash = await calculateSha256(randomString);
-    console.log(`   - Hash: ${hash.substring(0, 10)}...`);
-
-    // 4. Find the input and submit button
-    const input = await waitForElement('.sha256-input');
-    const submitButton = await waitForElement('.captcha-verify-button');
-
-    // 5. Input the hash and submit
-    console.log('4. Typing hash into input field.');
-    (input as HTMLInputElement).value = hash;
-
-    console.log('5. Clicking submit button.');
-    submitButton.click();
-
-    // 6. Check for the result
-    await waitForElement('.captcha-container.verified');
-    console.log('✅ CAPTCHA solved successfully!');
+    await waitForElement(".captcha-container.verified");
+    console.log("CAPTCHA solved successfully!");
   } catch (error) {
-    console.error('❌ Bot failed:', error);
+    console.error("❌ Bot failed:", error);
   }
 }
 
-// --- Create a button on the main page to run the bot ---
 function createBotTriggerButton() {
-    const button = document.createElement('button');
-    button.textContent = '🤖 Botを実行';
-    button.style.position = 'fixed';
-    button.style.bottom = '20px';
-    button.style.right = '20px';
-    button.style.zIndex = '9999';
-    button.style.padding = '10px 15px';
-    button.style.backgroundColor = '#6a0dad';
-    button.style.color = 'white';
-    button.style.border = 'none';
-    button.style.borderRadius = '5px';
-    button.style.cursor = 'pointer';
+  const button = document.createElement("button");
+  button.textContent = "Run Bot";
+  button.style.position = "fixed";
+  button.style.bottom = "20px";
+  button.style.right = "20px";
+  button.style.zIndex = "9999";
+  button.style.padding = "10px 15px";
+  button.style.backgroundColor = "#6a0dad";
+  button.style.color = "white";
+  button.style.border = "none";
+  button.style.borderRadius = "5px";
+  button.style.cursor = "pointer";
 
-    button.addEventListener('click', () => {
-        solveCaptcha();
-    });
+  button.addEventListener("click", () => {
+    solveCaptcha();
+  });
 
-    document.body.appendChild(button);
+  document.body.appendChild(button);
 }
 
-// Run after the main page has had a moment to load
-window.addEventListener('load', () => {
-    createBotTriggerButton();
+window.addEventListener("load", () => {
+  createBotTriggerButton();
 });

@@ -23,6 +23,27 @@ body {
     text-align: center;
 }
 
+/* New wrapper for container and status message */
+.captcha-wrapper {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+}
+
+/* New status message style */
+.captcha-status-message {
+    color: #ff5555;
+    font-size: 14px;
+    height: 1.5em; /* Reserve space to prevent layout shift */
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+
+.captcha-status-message.visible {
+    opacity: 1;
+}
+
 /* CAPTCHA Container */
 .captcha-container {
     position: relative; /* For positioning the popup */
@@ -116,17 +137,14 @@ body {
 /* Popup (replaces Modal) */
 .captcha-popup {
     position: absolute;
-    /* Position it above the container */
-    bottom: 100%;
     left: 50%;
-    transform: translateX(-50%);
-    margin-bottom: 10px; /* Spacing from the trigger */
+    transform: translateX(-50%); /* Center horizontally */
 
     background-color: #2f2f2f;
     border: 1px solid #666;
     border-radius: 8px;
     width: 400px;
-    min-height: 200px; /* Reduced min-height */
+    min-height: 200px;
     box-shadow: 0 6px 25px rgba(0, 0, 0, 0.6);
 
     display: flex;
@@ -136,17 +154,24 @@ body {
     /* Hide by default */
     opacity: 0;
     visibility: hidden;
-    transform: translate(-50%, 10px); /* Start slightly lower */
     transition:
         opacity 0.2s ease,
-        visibility 0.2s ease,
-        transform 0.2s ease;
+        visibility 0.2s ease; /* No transform */
+}
+
+.popup-position-above {
+    bottom: 100%;
+    margin-bottom: 10px;
+}
+
+.popup-position-below {
+    top: 100%;
+    margin-top: 10px;
 }
 
 .captcha-popup.visible {
     opacity: 1;
     visibility: visible;
-    transform: translateX(-50%); /* End at final position */
 }
 
 .captcha-popup-header {

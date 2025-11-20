@@ -41,7 +41,7 @@ export class Sha256Challenge implements CaptchaChallenge {
     container.className = "sha256-challenge";
 
     const title = document.createElement("p");
-    title.textContent = "以下の文字列のSHA-256ハッシュを入力してください:";
+    title.textContent = "Enter the SHA-256 hash of the string below:";
 
     const randomString = Sha256Challenge.generateRandomString(64);
     const stringDisplay = document.createElement("div");
@@ -51,13 +51,13 @@ export class Sha256Challenge implements CaptchaChallenge {
     const input = document.createElement("input");
     input.type = "text";
     input.className = "sha256-input";
-    input.placeholder = "ハッシュ値をここに入力";
+    input.placeholder = "Enter hash value here";
 
     const timerDisplay = document.createElement("div");
     timerDisplay.className = "sha256-timer";
 
     const submitButton = document.createElement("button");
-    submitButton.textContent = "提出";
+    submitButton.textContent = "Submit";
     submitButton.className = "captcha-verify-button"; // Use existing style
 
     container.appendChild(title);
@@ -69,11 +69,11 @@ export class Sha256Challenge implements CaptchaChallenge {
 
     // --- Logic ---
     let timeLeft = 3;
-    timerDisplay.textContent = `残り時間: ${timeLeft.toFixed(1)}秒`;
+    timerDisplay.textContent = `Time left: ${timeLeft.toFixed(1)}s`;
 
     const timerId = setInterval(() => {
       timeLeft -= 0.1;
-      timerDisplay.textContent = `残り時間: ${timeLeft.toFixed(1)}秒`;
+      timerDisplay.textContent = `Time left: ${timeLeft.toFixed(1)}s`;
 
       if (timeLeft <= 0) {
         clearInterval(timerId);
